@@ -51,7 +51,7 @@ or press Esc to exit.
 |Invert Game Colors|R|
 
 
-######  Saving via the P key instead of the ingame pause menu will save battery life
+######  Pausing via the P key instead of the ingame pause menu will save battery life
 
 ---
 
