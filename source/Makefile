@@ -1,60 +1,23 @@
-DEBUG = FALSE
+PREFIX=nspire-
 
-BLD_FILE ?= .buildver                                                          
+all: nes_emu.tns clean_p
+	@echo DONE
 
-# Initiate BLD_FILE if not exists                                              
-buildver_create := $(shell if ! test -f $(BLD_FILE); then echo 0 > $(BLD_FILE); fi)
+nes_emu.tns : nespire.elf
+	genzehn --input $< --output $@ --name "nes_emu"
+	if ! [ -d build ]; then mkdir ./build; fi
+	make-prg $@ './build/NESpire Kads Mod.tns'
 
-# Prepare callable function. This function updates BLD_FILE
-buildver = $(shell echo $$(($$(cat $(BLD_FILE)) + 1)) > $(BLD_FILE))
+nespire.elf : main.o cpu.o debug.o memory.o ppu.o rom.o menu.o
+	$(PREFIX)ld main.o cpu.o debug.o memory.o ppu.o rom.o menu.o -o $@
 
-VER = buildver
-
-GCC = nspire-gcc
-AS  = nspire-as
-GXX = nspire-g++
-LD  = nspire-ld
-GENZEHN = genzehn
-
-EXE = nespire$(shell cat $(BLD_FILE))
+%.o : %.S
+	$(PREFIX)gcc  -Wall -W -marm -Os -c $< -o $@
 
 
-GCCFLAGS = -Wall -W -marm
-LDFLAGS =
-ZEHNFLAGS = --name "$(EXE)"
-
-ifeq ($(DEBUG),FALSE)
-	GCCFLAGS += -Os
-else
-	GCCFLAGS += -O0 -g
-endif
-
-OBJS = $(patsubst %.c, %.o, $(shell find . -name \*.c))
-OBJS += $(patsubst %.cpp, %.o, $(shell find . -name \*.cpp))
-OBJS += $(patsubst %.S, %.o, $(shell find . -name \*.S))
-DISTDIR = builds
+clean_p: 
+	@rm -f *.o nespire.elf nes_emu.tns
 
 
-all:$(DISTDIR)/$(EXE).tns
-
-%.o: %.c
-	$(GCC) $(GCCFLAGS) -c $< -o $@
-
-%.o: %.cpp
-	$(GXX) $(GCCFLAGS) -c $< -o $@
-	
-%.o: %.S
-	$(AS) -c $< -o $@
-
-$(DISTDIR)/$(EXE).elf: $(OBJS)
-	mkdir -p $(DISTDIR)
-	$(LD) $^ -o $@ $(LDFLAGS)
-
-$(DISTDIR)/$(EXE).tns: $(DISTDIR)/$(EXE).elf
-	$(GENZEHN) --input $^ --output $@.zehn $(ZEHNFLAGS)
-	$(call buildver)
-	make-prg $@.zehn $@
-	rm $@.zehn
-
-clean:
-	rm -f $(OBJS) 
+clean: clean_p
+	@rm -rf ./build

@@ -3,7 +3,7 @@
 nes_rom_file_mask:
 	.string	"*.nes.tns"
 title:
-	.string	" NESpire v0.30 -- Shift=start, Esc=quit"
+	.string	" NESpire v0.30 -- Var=start, Doc=quit"
 	.align	4
 
 .globl rom_menu

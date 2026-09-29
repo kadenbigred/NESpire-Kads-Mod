@@ -10,8 +10,7 @@ main:
 	sub	sp, sp, #s_SIZE
 	bic	sp, sp, #s_ALIGN - 1
 	mov	r9, sp
-    sub sp, sp, #s_SIZE // Reserve space for state ADDED
-	
+        sub     sp, sp, #s_SIZE // Reserve space for state ADDED
 	
 	mov	r4, #0
 	mov	r6, #s_SIZE
@@ -19,9 +18,6 @@ main:
 	str	r4, [r9, r6]
 	bne	1b
 	str	r5, [r9, #s_saved_sp]
-
-
-
 
 	@ Get our folder path
 	add	r4, r9, #s_path
@@ -180,7 +176,7 @@ newframe:
 	mov	r8, #0
 pause_loop:
 
-#define num_command_keys 14
+#define num_command_keys 11
 	@ Scan keypad
 	ldr	r3, [r9, #s_hw_keypad_invert]
 	mov	r4, #0
@@ -200,21 +196,18 @@ pause_loop:
 	str	r4, [r9, #s_command_keys_pressed]
 	bic	r5, r4, r5
 
-	tst	r5, #1 << 0;	movne	r10, #1
-	tst	r5, #1 << 1;	movne	r10, #2
-	tst	r5, #1 << 2;	movne	r10, #3
-	tst	r5, #1 << 3;	movne	r10, #4
-	
-	tst	r5, #1 << 4;	movne	r10, #5
-	tst	r5, #1 << 5;	movne	r10, #6
-	tst	r5, #1 << 6;	blne	toggle_border   @ B (Border)
-	tst	r5, #1 << 7;	mvnne	r8, r8          @ P (Pause)
+	tst	r5, #1 << 0;	blne save_state
+//	tst	r5, #1 << 1;	movne	r10, #2
+	tst	r5, #1 << 2;	blne load_state
+//	tst	r5, #1 << 3;	movne	r10, #4
+//	tst	r5, #1 << 4;	movne	r10, #5
+//	tst	r5, #1 << 5;	movne	r10, #6
+	tst	r5, #1 << 6;	blne	toggle_border	@ B (Border)
+	tst	r5, #1 << 7;	blne	invert_colors   @ R (Reverse)
 	tst	r5, #1 << 8;	bne	exit_emulator   @ Q (Quit)
-	tst	r5, #1 << 9;	blne	invert_colors   @ R (Reverse)
-	tst	r5, #1 << 10;	blne	sram_save       @ S (Save SRAM)
-	tst	r4, #1 << 11;	bne	fast_forward    @ *
-	tst r5, #1 << 12;    blne save_state
-	tst r5, #1 << 13;    blne load_state
+	tst	r5, #1 << 9;	mvnne	r8, r8          @ P (Pause)
+	tst	r4, #1 << 10;	bne	fast_forward    @ *
+
 
 
 
@@ -231,13 +224,14 @@ pause_loop:
 	movs	r8, r8
 	bne	pause_loop
 fast_forward:
-	str	r10, [r9, #s_frameskip]
+    str r10, [r9, #s_frameskip]
 
-	mov	lr, pc
-	ldr	pc, [r9, #s_keypad_read_input]
-	str	r0, [r9, #s_input_status]
+    mov lr, pc
+    ldr pc, [r9, #s_keypad_read_input]
+    str r0, [r9, #s_input_status]
 
-	ldr	pc, [sp], #4
+    ldr pc, [sp], #4
+
 
 init_keypad:
 	str	lr, [sp, #-4]!
@@ -284,32 +278,24 @@ touchpad_info_page:
 touchpad_main_page:
 	.byte	0x04
 
-	@       1    2    3    4    5    6    B    P    Q    R    S    *     ^    x^2
+	@       1    2    3    4    5    6    B    R    Q    P    *
 clickpad_command_map:
-	.byte	0x17,0x15,0x13,0x27,0x25,0x23,0x64,0x28,0x26,0x24,0x22,0x31,0x49,0x39
+	.byte	0x17,0x15,0x13,0x27,0x25,0x23,0x64,0x24,0x26,0x28,0x31
+
 touchpad_command_map:
-	.byte	0x17,0x64,0x13,0x27,0x56,0x23,0x45,0x22,0x21,0x20,0x16,0x48,0x49,0x29
+	.byte	0x17,0x64,0x13,0x27,0x56,0x23,0x45,0x20,0x21,0x22,0x48
+
+
 
 	.align	4
 
 clickpad_read_input:
-
-	@ r2 = 0xFFFFFF00
 	mvn	r2, #0xFF
-
-	@Load keypad state
-		@ loads address into r0
-		@ Each bit in the 900E0010-900E001F registers represents a key. Only bits 0 to 10 are used in each halfword. The mapping depends on the currently used keypad. 
 	ldr	r0, =0x900E0000
-		@ loads double word in (adress + 0x18) into r0
-	ldrd r0, [r0, #0x18]
-
-	@invert
+	ldrd	r0, [r0, #0x18]
 	ldr	r3, [r9, #s_hw_keypad_invert]
 	eor	r0, r3
 	eor	r1, r3
-
-	@key mapping
 	tst	r0, #1 << 25;	orrne	r2, r2, #0x08	@ Caps (Start)
 	tst	r1, #1 << 7;	orrne	r2, r2, #0x01	@ Esc (A)
 	tst	r1, #1 << 9;	orrne	r2, r2, #0x02	@ Tab (B)
@@ -322,58 +308,25 @@ clickpad_read_input:
 	bx	lr
 
 touchpad_read_input:
-	push	{r4, lr}
-	mvn	r4, #0xFF
-
+    push {r4, lr}
+	mvn	r2, #0xFF
 	ldr	r0, =0x900E0000
+	ldr r4, [r0, #0x14]
 	ldrd	r0, [r0, #0x18]
-	ldr	r2, [r9, #s_hw_keypad_invert]
-	eor	r0, r2
-	eor	r1, r2
-	tst	r1, #1 << 7;	orrne	r4, r4, #0x01	@ Esc (A)
-	tst	r1, #1 << 9;	orrne	r4, r4, #0x02	@ Tab (B)
-	tst	r0, #1 << 25;	orrne	r4, r4, #0x04	@ Clear (Select)
-	tst	r1, #1 << 24;	orrne	r4, r4, #0x08	@ Caps (Start)
-
-	sub	sp, #0x0C
-	mov	r0, #0x02
-	mov	r1, #0x0A
-	add	r2, sp, #0x02
-	swi	e_touchpad_read
-	movs	r0, r0
-	beq	1f
-	ldrb	r0, [sp, #0x0A]
-	tst	r0, #0x01
-	beq	1f
-
-	ldrb	r0, [sp, #0x02]
-	ldrb	r1, [sp, #0x03]
-	ldrb	r2, [r9, #s_touchpad_size]
-	ldrb	r3, [r9, #s_touchpad_size+1]
-	orr	r0, r1, r0, lsl #8
-	orr	r2, r3, r2, lsl #8
-	add	r0, r0, lsl #1
-	cmp	r0, r2;         orrcc	r4, r4, #0x40	@ Left
-	cmp	r0, r2, lsl #1; orrcs	r4, r4, #0x80	@ Right
-
-	ldrb	r0, [sp, #0x04]
-	ldrb	r1, [sp, #0x05]
-	ldrb	r2, [r9, #s_touchpad_size+2]
-	ldrb	r3, [r9, #s_touchpad_size+3]
-	orr	r0, r1, r0, lsl #8
-	orr	r2, r3, r2, lsl #8
-	add	r0, r0, lsl #1
-	cmp	r0, r2;         orrcc	r4, r4, #0x20	@ Down
-	cmp	r0, r2, lsl #1; orrcs	r4, r4, #0x10	@ Up
-1:
-	add	sp, #0x0C
-
-	mov	r0, r4
-	pop	{r4, pc}
-
-	.pool
-
-.extern write_save_state
+	ldr	r3, [r9, #s_hw_keypad_invert]
+	eor	r0, r3
+	eor	r1, r3
+	eor r4, r3
+	tst	r0, #1 << 17;	orrne	r2, r2, #0x08	@ Var (Start)
+	tst	r1, #1 << 3;	orrne	r2, r2, #0x01	@ Doc (A)
+	tst	r1, #1 << 5;	orrne	r2, r2, #0x02	@ Menu (B)
+	tst	r1, #1 << 6;	orrne	r2, r2, #0x10	@ 8 (Up)
+	tst	r4, #1 << 3;	orrne	r2, r2, #0x80	@ 6 (Right)
+	tst	r0, #1 << 22;	orrne	r2, r2, #0x20	@ 5 (Down)
+	tst	r4, #1 << 7;	orrne	r2, r2, #0x40	@ 4 (Left)
+	tst	r0, #1 << 25;	orrne	r2, r2, #0x04	@ Del (Select)
+	mov r0, r2
+	pop {r4, pc}
 
 save_state:
     str lr, saved_state_cpu_status+56
@@ -394,13 +347,8 @@ save_state:
     cmp r1, #0
     bne sstate_loop
 
-
-
-	ldr r0, =saved_state_cpu_status
-	ldr r1, =saved_state_cpu_cpsr
-	sub r2, r9, #s_SIZE
-
-	bl write_save_state
+    mov r0, #1
+    str r0, save_state_exists
 
     ldr lr, saved_state_cpu_status+56 // subroutine return
 
